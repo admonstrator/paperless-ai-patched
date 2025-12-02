@@ -1,39 +1,105 @@
-node_modules
-npm-debug.log
-data
+# Git
 .git
 .gitignore
-.env
+.github
+
+# Node
+node_modules
+npm-debug.log
+package-lock.json.bak
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.venv
+venv
+.pytest_cache
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Documentation
 *.md
+!README.md
+docs/
+COPILOT.md
+TODO.md
+PR-*.md
+jsdoc_standards.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+PRIVACY_POLICY.md
+SECURITY.md
+RAG-DEV-GUIDE.md
+RAGZ_README.md
+
+# Tests
+test-*.js
+*.test.js
+*.spec.js
 api-test.ps1
+apitest.js
+api_correspondent.js
+api_test_r1.js
+openrouter.js
+delete_all.js
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+docker-compose-dev.yml
+.dockerignore
+
+# Logs
+*.log
+logs/
 openai_debug.log
-prompt.bak
+
+# Data & Cache
+data/
 data_bak/
 data_bak2/
 data_*/
-preview.png
-.env.bak
 data bak/
-.env*
-docker-compose-dev.yml
-public/images/
-delete_all.js
+chromadb/
+*.sqlite
+*.sqlite3
+*.db
+.npm
+.cache
 documents.json
-apitest.js
-logs/*
-api_correspondent.js
-prompt.txt
-api_test_r1.js
-openrouter.js
-/chromadb
+
+# Configuration backups
+.env*
 rag_config.conf
 indexed.conf
 indexing_complete.flag
-RAGZ_README.md
-/chromadb
-/chromadb/*
-rag_config.conf
-indexed.conf
 main.py.bak
-__pycache__/
+prompt.bak
+prompt.txt
+
+# Assets
+public/images/
+preview.png
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.bak
+*.tmp
+*.temp
 

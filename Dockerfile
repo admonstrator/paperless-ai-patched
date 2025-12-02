@@ -8,12 +8,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    python3-dev \
     python3-venv \
-    make \
-    g++ \
-    curl \
-    wget && \
+    curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -24,7 +20,12 @@ RUN npm install pm2 -g
 COPY requirements.txt /app/
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    find /app/venv -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true && \
+    find /app/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /app/venv -name "*.pyc" -delete && \
+    find /app/venv -name "*.pyo" -delete
 
 # Copy package files for dependency installation
 COPY package*.json ./
@@ -32,8 +33,15 @@ COPY package*.json ./
 # Install node dependencies with clean install
 RUN npm ci --only=production && npm cache clean --force
 
-# Copy application source code
-COPY . .
+# Copy only necessary application files
+COPY server.js main.py start-services.sh ./
+COPY config ./config/
+COPY models ./models/
+COPY routes ./routes/
+COPY services ./services/
+COPY views ./views/
+COPY public ./public/
+COPY schemas.js swagger.js ecosystem.config.js ./
 
 # Make startup script executable
 RUN chmod +x start-services.sh
