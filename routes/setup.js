@@ -1216,9 +1216,13 @@ router.get('/history', async (req, res) => {
  *     description: |
  *       Preloads history and tag data with real-time progress updates via SSE.
  *       This endpoint should be called before displaying the history table to warm up the cache.
+ *       Requires authentication via JWT token or API key.
  *     tags:
  *       - Documents
  *       - API
+ *     security:
+ *       - BearerAuth: []
+ *       - ApiKeyAuth: []
  *     responses:
  *       200:
  *         description: Loading in progress (SSE stream)
@@ -1226,8 +1230,10 @@ router.get('/history', async (req, res) => {
  *           text/event-stream:
  *             schema:
  *               type: string
+ *       401:
+ *         description: Unauthorized - authentication required
  */
-router.get('/api/history/load-progress', async (req, res) => {
+router.get('/api/history/load-progress', isAuthenticated, async (req, res) => {
   try {
     // Set headers for Server-Sent Events
     res.setHeader('Content-Type', 'text/event-stream');
