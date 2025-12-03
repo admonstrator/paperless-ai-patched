@@ -30,6 +30,8 @@ Each subdirectory represents an integrated fix with:
 |----|-------|--------|------------------|
 | [DEP-001](DEP-001-remove-sqlite3/) | Remove unused sqlite3 dependency | ✅ Applied | 2025-12-03 |
 | [DOCKER-001](DOCKER-001-optimize-images/) | Docker image optimization | ✅ Applied | 2025-12-03 |
+| [UI-001](UI-001-hide-rag-menu-lite/) | Hide RAG menu in Lite image | ✅ Applied | 2025-12-04 |
+| [CI-001](CI-001-auto-version-tagging/) | Automatic version tagging for builds | ✅ Applied | 2025-12-04 |
 
 ### Security Fixes
 
