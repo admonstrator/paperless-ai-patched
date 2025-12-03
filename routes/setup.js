@@ -554,7 +554,8 @@ router.get('/playground', protectApiRoute, async (req, res) => {
       tagNames,
       correspondentNames,
       paperlessUrl,
-      version: configFile.PAPERLESS_AI_VERSION || ' '
+      version: configFile.PAPERLESS_AI_VERSION || ' ',
+      ragEnabled: process.env.RAG_SERVICE_ENABLED === 'true'
     });
   } catch (error) {
     console.error('[ERRO] loading documents view:', error);
@@ -702,7 +703,7 @@ router.get('/chat', async (req, res) => {
       const {open} = req.query;
       const documents = await paperlessService.getDocuments();
       const version = configFile.PAPERLESS_AI_VERSION || ' ';
-      res.render('chat', { documents, open, version });
+      res.render('chat', { documents, open, version, ragEnabled: process.env.RAG_SERVICE_ENABLED === 'true' });
   } catch (error) {
     console.error('[ERRO] loading documents:', error);
     res.status(500).send('Error loading documents');
@@ -1039,6 +1040,7 @@ router.get('/history', async (req, res) => {
     // This allows the page to render immediately
     res.render('history', {
       version: configFile.PAPERLESS_AI_VERSION,
+      ragEnabled: process.env.RAG_SERVICE_ENABLED === 'true',
       filters: {
         allTags: [],  // Will be loaded by JavaScript via /api/history/load-progress
         allCorrespondents: []  // Will be populated when DataTable loads
@@ -2381,6 +2383,7 @@ router.get('/manual', async (req, res) => {
     error: null,
     success: null,
     version,
+    ragEnabled: process.env.RAG_SERVICE_ENABLED === 'true',
     paperlessUrl: process.env.PAPERLESS_API_URL,
     paperlessToken: process.env.PAPERLESS_API_TOKEN,
     config: {}
@@ -2874,7 +2877,8 @@ router.get('/dashboard', async (req, res) => {
       averageTotalTokens, 
       tokensOverall 
     }, 
-    version 
+    version,
+    ragEnabled: process.env.RAG_SERVICE_ENABLED === 'true'
   });
 });
 
@@ -3000,6 +3004,7 @@ router.get('/settings', async (req, res) => {
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
   res.render('settings', { 
     version,
+    ragEnabled: process.env.RAG_SERVICE_ENABLED === 'true',
     config,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
     settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined
