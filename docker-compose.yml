@@ -1,6 +1,13 @@
 services:
   paperless-ai:
-    image: clusterzx/paperless-ai
+    # Recommended: Use GHCR for no rate limits
+    image: ghcr.io/admonstrator/paperless-ai-patched:latest
+    # Alternative: Docker Hub
+    # image: admonstrator/paperless-ai-patched:latest
+    
+    # For RAG support, use the full image (~1.5-2 GB):
+    # image: ghcr.io/admonstrator/paperless-ai-patched:latest-full
+    
     container_name: paperless-ai
     network_mode: bridge
     restart: unless-stopped

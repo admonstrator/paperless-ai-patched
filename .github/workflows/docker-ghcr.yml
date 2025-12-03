@@ -1,0 +1,187 @@
+name: Build and Push to GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag (e.g., v3.0.9-1)'
+        required: true
+        default: 'latest'
+        type: string
+      also_tag_latest:
+        description: 'Also tag as "latest"'
+        required: false
+        default: false
+        type: boolean
+      build_full_image:
+        description: 'Also build Full image (with RAG/PyTorch)'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Build and Push Lite Image
+  build-push-lite:
+    name: Build & Push Lite Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata for Lite image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ inputs.tag || 'latest' }}
+            type=raw,value=${{ inputs.tag || 'latest' }}-lite
+            type=raw,value=latest,enable=${{ inputs.also_tag_latest == true || github.ref == 'refs/heads/main' }}
+            type=raw,value=latest-lite,enable=${{ inputs.also_tag_latest == true || github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Lite image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.lite
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  # Job 2: Build and Push Full Image
+  build-push-full:
+    name: Build & Push Full Image
+    runs-on: ubuntu-latest
+    if: ${{ inputs.build_full_image == true || github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata for Full image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ inputs.tag || 'latest' }}-full
+            type=raw,value=latest-full,enable=${{ inputs.also_tag_latest == true || github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}-full
+            type=semver,pattern={{major}}.{{minor}}-full
+            type=ref,event=pr,suffix=-full
+            type=sha,prefix={{branch}}-,suffix=-full
+      
+      - name: Build and push Full image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  # Job 3: Summary
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-push-lite]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "### 🚀 GHCR Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ inputs.tag || 'auto' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** GitHub Container Registry (GHCR)" >> $GITHUB_STEP_SUMMARY
+          echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "#### ✅ Lite Image (Default)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size:** ~500-700 MB" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "- **Features:** Full AI tagging, no RAG" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository }}:${{ inputs.tag || 'latest' }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ inputs.build_full_image }}" = "true" ] || [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "#### ✅ Full Image (with RAG)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Size:** ~1.5-2 GB (optimized with multi-stage build)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+            echo "- **Features:** AI tagging + RAG semantic search" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull ghcr.io/${{ github.repository }}:${{ inputs.tag || 'latest' }}-full" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "#### ℹ️ Full Image" >> $GITHUB_STEP_SUMMARY
+            echo "Not built (build_full_image was false)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** [${{ github.repository }}](https://github.com/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Packages:** [View on GHCR](https://github.com/${{ github.repository }}/pkgs/container/paperless-ai-patched)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🎯 Benefits of GHCR:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ No rate limits" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Unlimited bandwidth" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Free for public repos" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Integrated with GitHub Actions" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Automatic security scanning with Dependabot" >> $GITHUB_STEP_SUMMARY

@@ -1,5 +1,6 @@
 # 📄 Paperless-AI Patched
 
+[![GHCR](https://img.shields.io/badge/GHCR-latest-blue?logo=github)](https://github.com/Admonstrator/paperless-ai-patched/pkgs/container/paperless-ai-patched)
 [![Docker Pulls](https://img.shields.io/docker/pulls/admonstrator/paperless-ai-patched)](https://hub.docker.com/r/admonstrator/paperless-ai-patched)
 [![GitHub Stars](https://img.shields.io/github/stars/Admonstrator/paperless-ai-patched)](https://github.com/Admonstrator/paperless-ai-patched)
 [![License](https://img.shields.io/github/license/Admonstrator/paperless-ai-patched)](LICENSE)
@@ -112,13 +113,43 @@ Powered by **Retrieval-Augmented Generation (RAG)**, you can now search semantic
 
 📘 [Installation Wiki](https://github.com/clusterzx/paperless-ai/wiki/2.-Installation)
 
+### 📦 Container Images
+
+Images are available on both **GitHub Container Registry (GHCR)** and **Docker Hub**:
+
+#### Recommended: GitHub Container Registry (GHCR)
+```bash
+# Lite version (~500-700 MB) - AI tagging only
+docker pull ghcr.io/admonstrator/paperless-ai-patched:latest
+
+# Full version (~1.5-2 GB) - AI tagging + RAG search
+docker pull ghcr.io/admonstrator/paperless-ai-patched:latest-full
+```
+
+**Benefits of GHCR:**
+- ✅ No rate limits
+- ✅ Unlimited bandwidth
+- ✅ Free for public repositories
+- ✅ Integrated with GitHub Actions
+
+#### Alternative: Docker Hub
+```bash
+# Lite version
+docker pull admonstrator/paperless-ai-patched:latest
+
+# Full version
+docker pull admonstrator/paperless-ai-patched:latest-full
+```
+
 ---
 
 ## 🐳 Docker Support
 
+- Multi-stage optimized builds for smaller image sizes
 - Health monitoring and auto-restart
 - Persistent volumes and graceful shutdown
 - Works out of the box with minimal setup
+- Multi-arch support (amd64, arm64)
 
 ---
 
