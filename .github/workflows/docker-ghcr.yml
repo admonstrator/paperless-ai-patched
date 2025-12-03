@@ -21,7 +21,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # Job 1: Build and Push Lite Image
@@ -33,6 +32,11 @@ jobs:
       packages: write
     
     steps:
+      - name: Set lowercase repository name
+        id: repo
+        run: |
+          echo "name=${GITHUB_REPOSITORY@L}" >> $GITHUB_OUTPUT
+      
       - name: Aggressive cleanup
         run: |
           # Remove Java (JDKs)
@@ -89,7 +93,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}
           tags: |
             type=raw,value=${{ inputs.tag || 'latest' }}
             type=raw,value=${{ inputs.tag || 'latest' }}-lite
@@ -111,10 +115,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: |
             type=gha
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-lite
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-lite
           cache-to: |
             type=gha,mode=max
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-lite,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-lite,mode=max
           provenance: true
           sbom: true
           build-args: |
@@ -130,6 +134,11 @@ jobs:
       packages: write
     
     steps:
+      - name: Set lowercase repository name
+        id: repo
+        run: |
+          echo "name=${GITHUB_REPOSITORY@L}" >> $GITHUB_OUTPUT
+      
       - name: Aggressive cleanup
         run: |
           # Remove Java (JDKs)
@@ -186,7 +195,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}
           tags: |
             type=raw,value=${{ inputs.tag || 'latest' }}-full
             type=raw,value=latest-full,enable=${{ inputs.also_tag_latest == true || github.ref == 'refs/heads/main' }}
@@ -206,10 +215,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: |
             type=gha
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-full
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-full
           cache-to: |
             type=gha,mode=max
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-full,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-full,mode=max
           provenance: true
           sbom: true
           build-args: |
