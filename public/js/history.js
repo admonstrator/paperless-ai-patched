@@ -285,7 +285,7 @@ class HistoryManager {
                     width: '150px'
                 }
             ],
-            order: [[2, 'desc']],
+            order: [[1, 'desc']], // Sort by document_id (column 1) descending - newest first
             pageLength: 10,
             dom: '<"flex flex-col sm:flex-row justify-between items-center mb-4"<"flex-1"f><"flex-none"l>>rtip',
             language: {
