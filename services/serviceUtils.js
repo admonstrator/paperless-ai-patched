@@ -245,12 +245,17 @@ function validateUrl(urlString, options = {}) {
 
         // Block IPv6 private/local addresses
         if (hostname.startsWith('[') || hostname.includes(':')) {
-            const cleanedHostname = hostname.replace(/^\[|\]$/g, '');
-            if (cleanedHostname.startsWith('fe80:') || 
-                cleanedHostname.startsWith('fc') || 
-                cleanedHostname.startsWith('fd') ||
-                cleanedHostname === '::' ||
-                cleanedHostname === '::1') {
+            const cleanedHostname = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+            // Link-local (fe80::/10)
+            if (cleanedHostname.startsWith('fe80:')) {
+                return { valid: false, error: 'Private IPv6 addresses are not allowed' };
+            }
+            // Unique local addresses (fc00::/7 - fc and fd prefixes)
+            if (/^f[cd][0-9a-f]{2}:/i.test(cleanedHostname)) {
+                return { valid: false, error: 'Private IPv6 addresses are not allowed' };
+            }
+            // Loopback (::1) and unspecified (::)
+            if (cleanedHostname === '::' || cleanedHostname === '::1') {
                 return { valid: false, error: 'Private IPv6 addresses are not allowed' };
             }
         }

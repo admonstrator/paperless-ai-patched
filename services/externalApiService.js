@@ -2,6 +2,9 @@ const axios = require('axios');
 const config = require('../config/config');
 const { validateApiUrl } = require('./serviceUtils');
 
+// Maximum allowed depth for property access to prevent DoS
+const MAX_TRANSFORM_DEPTH = 10;
+
 /**
  * Safely apply a JSONPath-like transformation to data without using Function constructor.
  * Supports simple property access patterns like "data.items" or "response.results[0]".
@@ -36,6 +39,13 @@ function safeTransform(data, transform) {
   try {
     // Parse the path and navigate through the object
     const parts = path.split(/\.|\[|\]/).filter(Boolean);
+    
+    // Check depth limit to prevent DoS
+    if (parts.length > MAX_TRANSFORM_DEPTH) {
+      console.warn(`[WARNING] Transform path exceeds maximum depth of ${MAX_TRANSFORM_DEPTH}, returning original data`);
+      return data;
+    }
+    
     let result = data;
     
     for (const part of parts) {
