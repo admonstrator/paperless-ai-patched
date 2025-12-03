@@ -1493,13 +1493,26 @@ router.post('/api/reset-documents', async (req, res) => {
  */
 router.post('/api/history/validate', async (req, res) => {
   try {
+    // Set headers for Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
     // Get all history entries from local DB
     const allHistory = await documentModel.getAllHistory();
+    const total = allHistory.length;
+    
+    // Send initial progress
+    res.write(`data: ${JSON.stringify({ type: 'progress', current: 0, total, missing: 0 })}\n\n`);
 
     // For each history entry, try to fetch the document from Paperless
     const missing = [];
+    let current = 0;
 
     for (const h of allHistory) {
+      current++;
+      
       try {
         // paperlessService.getDocument will throw on non-2xx (including 404)
         await paperlessService.getDocument(h.document_id);
@@ -1507,12 +1520,26 @@ router.post('/api/history/validate', async (req, res) => {
         // Treat any error fetching the document as missing
         missing.push({ document_id: h.document_id, title: h.title || null });
       }
+      
+      // Send progress update every 5 documents or on last one
+      if (current % 5 === 0 || current === total) {
+        res.write(`data: ${JSON.stringify({ 
+          type: 'progress', 
+          current, 
+          total, 
+          missing: missing.length,
+          percentage: Math.round((current / total) * 100)
+        })}\n\n`);
+      }
     }
 
-    res.json({ missing });
+    // Send final result
+    res.write(`data: ${JSON.stringify({ type: 'complete', missing })}\n\n`);
+    res.end();
   } catch (error) {
     console.error('[ERROR] validating history:', error);
-    res.status(500).json({ error: 'Error validating history' });
+    res.write(`data: ${JSON.stringify({ type: 'error', error: 'Error validating history' })}\n\n`);
+    res.end();
   }
 });
 

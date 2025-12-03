@@ -345,11 +345,58 @@ class HistoryManager {
                 </div>
             `;
 
-            // Simulate progress updates (since we don't have real-time updates from backend)
+            // Use EventSource for real-time progress updates
             const progressBar = document.getElementById('validateProgress');
             const statusText = document.getElementById('validateStatus');
-            
-            let progress = 0;
+
+            const eventSource = new EventSource('/api/history/validate');
+            let missingDocuments = [];
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'progress') {
+                    // Update progress bar
+                    const percentage = data.percentage || 0;
+                    progressBar.style.width = `${percentage}%`;
+                    
+                    // Update status text with real numbers
+                    statusText.textContent = `Checking ${data.current} of ${data.total} entries... (${data.missing} missing found)`;
+                } 
+                else if (data.type === 'complete') {
+                    // Validation complete
+                    eventSource.close();
+                    missingDocuments = data.missing || [];
+                    
+                    // Complete the progress bar
+                    progressBar.style.width = '100%';
+                    statusText.textContent = 'Validation complete!';
+                    
+                    // Small delay to show completion
+                    setTimeout(() => {
+                        this.renderValidateResults(missingDocuments);
+                    }, 300);
+                }
+                else if (data.type === 'error') {
+                    eventSource.close();
+                    alert('Failed to validate history. Please try again.');
+                    this.hideModal(this.validateModal);
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error('EventSource error:', error);
+                eventSource.close();
+                alert('Connection error during validation. Please try again.');
+                this.hideModal(this.validateModal);
+            };
+        } catch (error) {
+            console.error('Error validating history:', error);
+            alert('Failed to validate history. Please try again.');
+            this.hideModal(this.validateModal);
+        }
+    }
+
     renderValidateResults(missing) {
         const container = document.getElementById('validateResults');
         if (!container) return;
@@ -407,25 +454,6 @@ class HistoryManager {
                 const checkboxes = container.querySelectorAll('input[type="checkbox"]:not(#selectAllMissing)');
                 checkboxes.forEach(cb => cb.checked = e.target.checked);
             });
-        }
-    }       
-            if (!response.ok) {
-                throw new Error('Failed to validate history');
-            }
-
-            // Complete the progress bar
-            progressBar.style.width = '100%';
-            statusText.textContent = 'Validation complete!';
-            
-            // Small delay to show completion
-            await new Promise(resolve => setTimeout(resolve, 300));
-
-            const data = await response.json();
-            this.renderValidateResults(data.missing || []);
-        } catch (error) {
-            console.error('Error validating history:', error);
-            alert('Failed to validate history. Please try again.');
-            this.hideModal(this.validateModal);
         }
     }
 
