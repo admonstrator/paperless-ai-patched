@@ -1339,6 +1339,11 @@ async function getCachedTags() {
   return tagCache.data;
 }
 
+function clearTagCache() {
+  tagCache.data = null;
+  tagCache.timestamp = 0;
+}
+
 router.get('/api/history', async (req, res) => {
   try {
     const draw = parseInt(req.query.draw);
@@ -1458,6 +1463,47 @@ router.get('/api/history', async (req, res) => {
  *                   type: string
  *                   example: "Error resetting documents"
  */
+/**
+ * @swagger
+ * /api/history/clear-cache:
+ *   post:
+ *     summary: Clear tag cache
+ *     description: Forces cache invalidation to load fresh filter data on next request
+ *     tags:
+ *       - History
+ *       - API
+ *     security:
+ *       - BearerAuth: []
+ *       - ApiKeyAuth: []
+ *     responses:
+ *       200:
+ *         description: Cache cleared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Cache cleared successfully"
+ *       401:
+ *         description: Unauthorized - authentication required
+ *       500:
+ *         description: Server error
+ */
+router.post('/api/history/clear-cache', isAuthenticated, async (req, res) => {
+  try {
+    clearTagCache();
+    res.json({ success: true, message: 'Cache cleared successfully' });
+  } catch (error) {
+    console.error('[ERROR] clearing cache:', error);
+    res.status(500).json({ error: 'Error clearing cache' });
+  }
+});
+
 router.post('/api/reset-all-documents', async (req, res) => {
   try {
     await documentModel.deleteAllDocuments();
