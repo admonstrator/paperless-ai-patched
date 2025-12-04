@@ -1,5 +1,68 @@
 const axios = require('axios');
 const config = require('../config/config');
+const { validateApiUrl } = require('./serviceUtils');
+
+// Maximum allowed depth for property access to prevent DoS
+const MAX_TRANSFORM_DEPTH = 10;
+
+/**
+ * Safely apply a JSONPath-like transformation to data without using Function constructor.
+ * Supports simple property access patterns like "data.items" or "response.results[0]".
+ * 
+ * @param {Object} data - The data to transform
+ * @param {string} transform - A dot-notation path to extract (e.g., "data.items" or "response.results")
+ * @returns {*} The extracted data or the original data if transform fails
+ */
+function safeTransform(data, transform) {
+  if (!transform || typeof transform !== 'string') {
+    return data;
+  }
+
+  // Only allow safe property access patterns (alphanumeric, dots, brackets with numbers)
+  const safePattern = /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*|\[\d+\])*$/;
+  
+  // Handle "return data.path" or just "data.path" patterns
+  let path = transform.trim();
+  if (path.startsWith('return ')) {
+    path = path.substring(7).trim();
+  }
+  // Remove trailing semicolon if present
+  if (path.endsWith(';')) {
+    path = path.slice(0, -1).trim();
+  }
+
+  if (!safePattern.test(path)) {
+    console.warn('[WARNING] Transform pattern contains unsafe characters, returning original data');
+    return data;
+  }
+
+  try {
+    // Parse the path and navigate through the object
+    const parts = path.split(/\.|\[|\]/).filter(Boolean);
+    
+    // Check depth limit to prevent DoS
+    if (parts.length > MAX_TRANSFORM_DEPTH) {
+      console.warn(`[WARNING] Transform path exceeds maximum depth of ${MAX_TRANSFORM_DEPTH}, returning original data`);
+      return data;
+    }
+    
+    let result = data;
+    
+    for (const part of parts) {
+      if (result === null || result === undefined) {
+        return data;
+      }
+      // Handle numeric indices and string keys
+      const key = /^\d+$/.test(part) ? parseInt(part, 10) : part;
+      result = result[key];
+    }
+    
+    return result !== undefined ? result : data;
+  } catch (error) {
+    console.warn('[WARNING] Failed to apply transform, returning original data:', error.message);
+    return data;
+  }
+}
 
 /**
  * Service for fetching data from external APIs to enrich AI prompts
@@ -28,6 +91,15 @@ class ExternalApiService {
 
       if (!url) {
         console.error('[ERROR] External API URL not configured');
+        return null;
+      }
+
+      // Validate URL to prevent SSRF attacks
+      // Note: allowPrivateIPs is set based on environment - administrators may need internal APIs
+      const allowPrivateIPs = process.env.EXTERNAL_API_ALLOW_PRIVATE_IPS === 'yes';
+      const urlValidation = validateApiUrl(url, { allowPrivateIPs });
+      if (!urlValidation.valid) {
+        console.error(`[ERROR] External API URL validation failed: ${urlValidation.error}`);
         return null;
       }
 
@@ -72,15 +144,13 @@ class ExternalApiService {
       const response = await axios(options);
       let data = response.data;
 
-      // Apply transform function if provided
+      // Apply safe transform if provided (replaces unsafe Function constructor)
       if (transform && typeof transform === 'string') {
         try {
-          // Create a safe transform function
-          const transformFn = new Function('data', transform);
-          data = transformFn(data);
+          data = safeTransform(data, transform);
           console.log('[DEBUG] Successfully transformed external API data');
         } catch (error) {
-          console.error('[ERROR] Failed to execute transform function:', error.message);
+          console.error('[ERROR] Failed to execute transform:', error.message);
         }
       }
 

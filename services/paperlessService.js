@@ -4,6 +4,7 @@ const config = require('../config/config');
 const fs = require('fs');
 const path = require('path');
 const { parse, isValid, parseISO, format } = require('date-fns');
+const { validateUrlAgainstBase } = require('./serviceUtils');
 
 class PaperlessService {
   constructor() {
@@ -24,6 +25,27 @@ class PaperlessService {
         }
       });
     }
+  }
+
+  /**
+   * Safely extract relative path from a pagination URL, validating against the base URL.
+   * This prevents SSRF attacks by ensuring the URL origin matches the expected base.
+   * 
+   * @param {string} nextUrl - The next URL from API response
+   * @returns {string|null} The relative path if valid, null otherwise
+   */
+  _safeExtractRelativePath(nextUrl) {
+    if (!nextUrl || !this.client?.defaults?.baseURL) {
+      return null;
+    }
+
+    const validation = validateUrlAgainstBase(nextUrl, this.client.defaults.baseURL);
+    if (!validation.valid) {
+      console.error(`[ERROR] URL validation failed: ${validation.error}`);
+      return null;
+    }
+
+    return validation.relativePath;
   }
 
   async getThumbnailImage(documentId) {
@@ -77,28 +99,11 @@ class PaperlessService {
             this.tagCache.set(tag.name.toLowerCase(), tag);
           });
 
-          // Fix: Extract only path and query from next URL to prevent HTTP downgrade
+          // Safely extract relative path from next URL to prevent SSRF
           if (response.data.next) {
-            try {
-              const nextUrlObj = new URL(response.data.next);
-              const baseUrlObj = new URL(this.client.defaults.baseURL);
-
-              // Extract path relative to baseURL to avoid double /api/ prefix
-              let relativePath = nextUrlObj.pathname;
-              if (baseUrlObj.pathname && baseUrlObj.pathname !== '/') {
-                // Remove the base path if it's included in the next URL path
-                relativePath = relativePath.replace(baseUrlObj.pathname, '');
-              }
-              // Ensure path starts with /
-              if (!relativePath.startsWith('/')) {
-                relativePath = '/' + relativePath;
-              }
-
-              nextUrl = relativePath + nextUrlObj.search;
+            nextUrl = this._safeExtractRelativePath(response.data.next);
+            if (nextUrl) {
               console.log('[DEBUG] Next page URL:', nextUrl);
-            } catch (e) {
-              console.error('[ERROR] Failed to parse next URL:', e.message);
-              nextUrl = null;
             }
           } else {
             nextUrl = null;
@@ -216,28 +221,11 @@ class PaperlessService {
             this.customFieldCache.set(field.name.toLowerCase(), field);
           });
 
-          // Fix: Extract only path and query from next URL to prevent HTTP downgrade
+          // Safely extract relative path from next URL to prevent SSRF
           if (response.data.next) {
-            try {
-              const nextUrlObj = new URL(response.data.next);
-              const baseUrlObj = new URL(this.client.defaults.baseURL);
-
-              // Extract path relative to baseURL to avoid double /api/ prefix
-              let relativePath = nextUrlObj.pathname;
-              if (baseUrlObj.pathname && baseUrlObj.pathname !== '/') {
-                // Remove the base path if it's included in the next URL path
-                relativePath = relativePath.replace(baseUrlObj.pathname, '');
-              }
-              // Ensure path starts with /
-              if (!relativePath.startsWith('/')) {
-                relativePath = '/' + relativePath;
-              }
-
-              nextUrl = relativePath + nextUrlObj.search;
+            nextUrl = this._safeExtractRelativePath(response.data.next);
+            if (nextUrl) {
               console.log('[DEBUG] Next page URL:', nextUrl);
-            } catch (e) {
-              console.error('[ERROR] Failed to parse next URL:', e.message);
-              nextUrl = null;
             }
           } else {
             nextUrl = null;

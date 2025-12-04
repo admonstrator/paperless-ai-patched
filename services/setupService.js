@@ -4,6 +4,7 @@ const axios = require('axios');
 const { OpenAI } = require('openai');
 const config = require('../config/config');
 const AzureOpenAI = require('openai').AzureOpenAI;
+const { validateApiUrl } = require('./serviceUtils');
 
 class SetupService {
   constructor() {
@@ -30,6 +31,14 @@ class SetupService {
 
   async validatePaperlessConfig(url, token) {
     try {
+      // Validate URL to prevent SSRF attacks
+      // Allow private IPs since Paperless-ngx is typically deployed in a private network
+      const urlValidation = validateApiUrl(url, { allowPrivateIPs: true });
+      if (!urlValidation.valid) {
+        console.error('Paperless URL validation error:', urlValidation.error);
+        return false;
+      }
+
       console.log('Validating Paperless config for:', url + '/api/documents/');
       const response = await axios.get(`${url}/api/documents/`, {
         headers: {
@@ -44,6 +53,13 @@ class SetupService {
   }
 
   async validateApiPermissions(url, token) {
+    // Validate URL first to prevent SSRF
+    const urlValidation = validateApiUrl(url, { allowPrivateIPs: true });
+    if (!urlValidation.valid) {
+      console.error('API URL validation error:', urlValidation.error);
+      return { success: false, message: `URL validation failed: ${urlValidation.error}` };
+    }
+
     for (const endpoint of ['correspondents', 'tags', 'documents', 'document_types', 'custom_fields', 'users']) {
       try {
         console.log(`Validating API permissions for ${url}/api/${endpoint}/`);
@@ -88,6 +104,14 @@ class SetupService {
   }
 
   async validateCustomConfig(url, apiKey, model) {
+    // Validate URL to prevent SSRF attacks
+    // Allow private IPs since custom AI services may be hosted internally
+    const urlValidation = validateApiUrl(url, { allowPrivateIPs: true });
+    if (!urlValidation.valid) {
+      console.error('Custom AI URL validation error:', urlValidation.error);
+      return false;
+    }
+
     const config = {
       baseURL: url,
       apiKey: apiKey,
@@ -114,6 +138,14 @@ class SetupService {
 
   async validateOllamaConfig(url, model) {
     try {
+      // Validate URL to prevent SSRF attacks
+      // Allow private IPs since Ollama is typically hosted locally
+      const urlValidation = validateApiUrl(url, { allowPrivateIPs: true });
+      if (!urlValidation.valid) {
+        console.error('Ollama URL validation error:', urlValidation.error);
+        return false;
+      }
+
       const response = await axios.post(`${url}/api/generate`, {
         model: model || 'llama3.2',
         prompt: 'Test',
@@ -128,6 +160,16 @@ class SetupService {
 
   async validateAzureConfig(apiKey, endpoint, deploymentName, apiVersion) {
     console.log('Endpoint: ', endpoint);
+    
+    // Validate Azure endpoint URL to prevent SSRF attacks
+    if (endpoint) {
+      const urlValidation = validateApiUrl(endpoint, { allowPrivateIPs: false });
+      if (!urlValidation.valid) {
+        console.error('Azure endpoint URL validation error:', urlValidation.error);
+        return false;
+      }
+    }
+
     if (config.CONFIGURED === false) {
       try {
         const openai = new AzureOpenAI({ apiKey: apiKey,

@@ -188,9 +188,162 @@ async function writePromptToFile(systemPrompt, truncatedContent, filePath = './l
     }
 }
 
+/**
+ * Validates a URL string to prevent Server-Side Request Forgery (SSRF) attacks.
+ * 
+ * @param {string} urlString - The URL string to validate
+ * @param {Object} options - Validation options
+ * @param {boolean} options.allowPrivateIPs - Allow private IP addresses (default: false)
+ * @param {string[]} options.allowedProtocols - Allowed protocols (default: ['http:', 'https:'])
+ * @returns {{ valid: boolean, url?: URL, error?: string }} Validation result with parsed URL if valid
+ */
+function validateUrl(urlString, options = {}) {
+    const {
+        allowPrivateIPs = false,
+        allowedProtocols = ['http:', 'https:']
+    } = options;
+
+    if (!urlString || typeof urlString !== 'string') {
+        return { valid: false, error: 'URL must be a non-empty string' };
+    }
+
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(urlString);
+    } catch {
+        return { valid: false, error: 'Invalid URL format' };
+    }
+
+    // Validate protocol
+    if (!allowedProtocols.includes(parsedUrl.protocol)) {
+        return { valid: false, error: `Protocol ${parsedUrl.protocol} is not allowed` };
+    }
+
+    // Block localhost and loopback addresses (unless explicitly allowed)
+    if (!allowPrivateIPs) {
+        const hostname = parsedUrl.hostname.toLowerCase();
+        
+        // Block localhost variations
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+            return { valid: false, error: 'Localhost addresses are not allowed' };
+        }
+
+        // Block private IP ranges
+        const ipPatterns = [
+            /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,        // 10.0.0.0/8
+            /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/, // 172.16.0.0/12
+            /^192\.168\.\d{1,3}\.\d{1,3}$/,           // 192.168.0.0/16
+            /^169\.254\.\d{1,3}\.\d{1,3}$/,           // 169.254.0.0/16 (link-local)
+            /^0\.0\.0\.0$/,                           // 0.0.0.0
+        ];
+
+        for (const pattern of ipPatterns) {
+            if (pattern.test(hostname)) {
+                return { valid: false, error: 'Private IP addresses are not allowed' };
+            }
+        }
+
+        // Block IPv6 private/local addresses
+        if (hostname.startsWith('[') || hostname.includes(':')) {
+            const cleanedHostname = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+            // Link-local (fe80::/10)
+            if (cleanedHostname.startsWith('fe80:')) {
+                return { valid: false, error: 'Private IPv6 addresses are not allowed' };
+            }
+            // Unique local addresses (fc00::/7 - fc and fd prefixes)
+            if (/^f[cd][0-9a-f]{2}:/i.test(cleanedHostname)) {
+                return { valid: false, error: 'Private IPv6 addresses are not allowed' };
+            }
+            // Loopback (::1) and unspecified (::)
+            if (cleanedHostname === '::' || cleanedHostname === '::1') {
+                return { valid: false, error: 'Private IPv6 addresses are not allowed' };
+            }
+        }
+
+        // Block cloud metadata endpoints
+        const metadataEndpoints = [
+            '169.254.169.254', // AWS, GCP, Azure metadata
+            'metadata.google.internal',
+            'metadata.goog',
+        ];
+        if (metadataEndpoints.some(endpoint => hostname === endpoint || hostname.endsWith('.' + endpoint))) {
+            return { valid: false, error: 'Cloud metadata endpoints are not allowed' };
+        }
+    }
+
+    return { valid: true, url: parsedUrl };
+}
+
+/**
+ * Validates an API URL for external service communication.
+ * This is a wrapper around validateUrl with settings appropriate for API calls.
+ * 
+ * @param {string} urlString - The URL string to validate
+ * @param {Object} options - Additional options
+ * @param {boolean} options.allowPrivateIPs - Allow private IP addresses for internal services (default: false)
+ * @returns {{ valid: boolean, url?: URL, error?: string }} Validation result
+ */
+function validateApiUrl(urlString, options = {}) {
+    return validateUrl(urlString, {
+        allowPrivateIPs: options.allowPrivateIPs || false,
+        allowedProtocols: ['http:', 'https:']
+    });
+}
+
+/**
+ * Validates that a URL belongs to a known/configured base URL.
+ * This helps prevent SSRF when processing URLs from API responses.
+ * 
+ * @param {string} urlToValidate - The URL to validate
+ * @param {string} expectedBaseUrl - The expected base URL that should match
+ * @returns {{ valid: boolean, relativePath?: string, error?: string }} Validation result
+ */
+function validateUrlAgainstBase(urlToValidate, expectedBaseUrl) {
+    if (!urlToValidate || typeof urlToValidate !== 'string') {
+        return { valid: false, error: 'URL must be a non-empty string' };
+    }
+    if (!expectedBaseUrl || typeof expectedBaseUrl !== 'string') {
+        return { valid: false, error: 'Base URL must be a non-empty string' };
+    }
+
+    let parsedUrl, parsedBase;
+    try {
+        parsedUrl = new URL(urlToValidate);
+        parsedBase = new URL(expectedBaseUrl);
+    } catch {
+        return { valid: false, error: 'Invalid URL format' };
+    }
+
+    // Validate that the host and protocol match the expected base
+    if (parsedUrl.origin !== parsedBase.origin) {
+        return { valid: false, error: 'URL origin does not match expected base URL' };
+    }
+
+    // Extract the relative path (removing the base path if present)
+    let relativePath = parsedUrl.pathname;
+    if (parsedBase.pathname && parsedBase.pathname !== '/') {
+        if (relativePath.startsWith(parsedBase.pathname)) {
+            relativePath = relativePath.substring(parsedBase.pathname.length);
+        }
+    }
+
+    // Ensure path starts with /
+    if (!relativePath.startsWith('/')) {
+        relativePath = '/' + relativePath;
+    }
+
+    return { 
+        valid: true, 
+        relativePath: relativePath + parsedUrl.search 
+    };
+}
+
 module.exports = {
     calculateTokens,
     calculateTotalPromptTokens,
     truncateToTokenLimit,
-    writePromptToFile
+    writePromptToFile,
+    validateUrl,
+    validateApiUrl,
+    validateUrlAgainstBase
 };

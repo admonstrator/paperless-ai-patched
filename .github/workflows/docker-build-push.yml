@@ -3,11 +3,6 @@ name: Docker Build and Push
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Docker image tag (e.g., v3.0.9-1)'
-        required: true
-        default: 'latest'
-        type: string
       also_tag_latest:
         description: 'Also tag as "latest"'
         required: false
@@ -18,10 +13,63 @@ on:
         required: false
         default: false
         type: boolean
+  push:
+    branches:
+      - main
 
 jobs:
+  # Job 0: Generate version tag
+  generate-version:
+    name: Generate Version Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version_tag: ${{ steps.version.outputs.tag }}
+      base_version: ${{ steps.version.outputs.base }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Generate version tag
+        id: version
+        run: |
+          # Extract base version from config.js
+          BASE_VERSION=$(grep "PAPERLESS_AI_VERSION:" config/config.js | sed "s/.*'\(.*\)'.*/\1/")
+          echo "Base version: $BASE_VERSION"
+          
+          # Get all tags matching the base version pattern
+          git fetch --tags
+          LATEST_BUILD=$(git tag -l "v${BASE_VERSION}-*" | sed "s/v${BASE_VERSION}-//" | sort -n | tail -1)
+          
+          # If no build number found, start with 1
+          if [ -z "$LATEST_BUILD" ]; then
+            BUILD_NUMBER=1
+          else
+            BUILD_NUMBER=$((LATEST_BUILD + 1))
+          fi
+          
+          VERSION_TAG="v${BASE_VERSION}-${BUILD_NUMBER}"
+          echo "Generated version tag: $VERSION_TAG"
+          
+          echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Create and push tag
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION_TAG="${{ steps.version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION_TAG" -m "Automated build $VERSION_TAG"
+          git push origin "$VERSION_TAG"
+
   # Job 1: Build Lite Image
   build-lite:
+    needs: generate-version
     name: Build Lite Image
     runs-on: ubuntu-latest
     outputs:
@@ -40,10 +88,10 @@ jobs:
         with:
           images: admonstrator/paperless-ai-patched
           tags: |
-            type=raw,value=${{ inputs.tag }}
-            type=raw,value=${{ inputs.tag }}-lite
-            type=raw,value=latest,enable=${{ inputs.also_tag_latest }}
-            type=raw,value=latest-lite,enable=${{ inputs.also_tag_latest }}
+            type=raw,value=${{ needs.generate-version.outputs.version_tag }}
+            type=raw,value=${{ needs.generate-version.outputs.version_tag }}-lite
+            type=raw,value=latest,enable=${{ inputs.also_tag_latest || github.event_name == 'push' }}
+            type=raw,value=latest-lite,enable=${{ inputs.also_tag_latest || github.event_name == 'push' }}
       
       - name: Build Lite Docker image
         id: build
@@ -61,6 +109,7 @@ jobs:
 
   # Job 2: Build Full Image (optional)
   build-full:
+    needs: generate-version
     name: Build Full Image
     runs-on: ubuntu-latest
     if: ${{ inputs.build_full_image }}
@@ -80,8 +129,8 @@ jobs:
         with:
           images: admonstrator/paperless-ai-patched
           tags: |
-            type=raw,value=${{ inputs.tag }}-full
-            type=raw,value=latest-full,enable=${{ inputs.also_tag_latest }}
+            type=raw,value=${{ needs.generate-version.outputs.version_tag }}-full
+            type=raw,value=latest-full,enable=${{ inputs.also_tag_latest || github.event_name == 'push' }}
       
       - name: Build Full Docker image
         id: build
@@ -101,7 +150,7 @@ jobs:
   push-lite:
     name: Push Lite Image
     runs-on: ubuntu-latest
-    needs: build-lite
+    needs: [generate-version, build-lite]
     
     steps:
       - name: Checkout code
@@ -122,10 +171,10 @@ jobs:
         with:
           images: admonstrator/paperless-ai-patched
           tags: |
-            type=raw,value=${{ inputs.tag }}
-            type=raw,value=${{ inputs.tag }}-lite
-            type=raw,value=latest,enable=${{ inputs.also_tag_latest }}
-            type=raw,value=latest-lite,enable=${{ inputs.also_tag_latest }}
+            type=raw,value=${{ needs.generate-version.outputs.version_tag }}
+            type=raw,value=${{ needs.generate-version.outputs.version_tag }}-lite
+            type=raw,value=latest,enable=${{ inputs.also_tag_latest || github.event_name == 'push' }}
+            type=raw,value=latest-lite,enable=${{ inputs.also_tag_latest || github.event_name == 'push' }}
       
       - name: Push Lite Docker image
         uses: docker/build-push-action@v5
@@ -142,7 +191,7 @@ jobs:
   push-full:
     name: Push Full Image
     runs-on: ubuntu-latest
-    needs: build-full
+    needs: [generate-version, build-full]
     if: ${{ inputs.build_full_image }}
     
     steps:
@@ -164,8 +213,8 @@ jobs:
         with:
           images: admonstrator/paperless-ai-patched
           tags: |
-            type=raw,value=${{ inputs.tag }}-full
-            type=raw,value=latest-full,enable=${{ inputs.also_tag_latest }}
+            type=raw,value=${{ needs.generate-version.outputs.version_tag }}-full
+            type=raw,value=latest-full,enable=${{ inputs.also_tag_latest || github.event_name == 'push' }}
       
       - name: Push Full Docker image
         uses: docker/build-push-action@v5
@@ -182,7 +231,7 @@ jobs:
   summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [build-lite, push-lite]
+    needs: [generate-version, build-lite, push-lite]
     if: always()
     
     steps:
@@ -190,8 +239,9 @@ jobs:
         run: |
           echo "### 🚀 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`${{ inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Also tagged as latest:** ${{ inputs.also_tag_latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Tag:** \`${{ needs.generate-version.outputs.version_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Base Version:** \`${{ needs.generate-version.outputs.base_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Also tagged as latest:** ${{ inputs.also_tag_latest || github.event_name == 'push' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "#### ✅ Lite Image (Default)" >> $GITHUB_STEP_SUMMARY
@@ -200,7 +250,7 @@ jobs:
           echo "- **Features:** Full AI tagging, no RAG" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull admonstrator/paperless-ai-patched:${{ inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull admonstrator/paperless-ai-patched:${{ needs.generate-version.outputs.version_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -211,7 +261,7 @@ jobs:
             echo "- **Features:** AI tagging + RAG semantic search" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-            echo "docker pull admonstrator/paperless-ai-patched:${{ inputs.tag }}-full" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull admonstrator/paperless-ai-patched:${{ needs.generate-version.outputs.version_tag }}-full" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "#### ℹ️ Full Image" >> $GITHUB_STEP_SUMMARY
