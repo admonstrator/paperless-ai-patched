@@ -620,10 +620,10 @@ class HistoryManager {
             </div>
             <div class="mb-3 flex gap-2">
                 <button id="selectAllMissingBtn" class="px-3 py-1.5 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors">
-                    <i class="fas fa-check-square"></i> Alle markieren
+                    <i class="fas fa-check-square"></i> Select All
                 </button>
                 <button id="deselectAllMissingBtn" class="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition-colors">
-                    <i class="fas fa-square"></i> Alle abwählen
+                    <i class="fas fa-square"></i> Deselect All
                 </button>
             </div>
             ${list}
