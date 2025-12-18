@@ -3,10 +3,13 @@ FROM node:24-slim
 
 WORKDIR /app
 
-# Install only minimal system dependencies
+# Install system dependencies including build tools for better-sqlite3
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    curl && \
+    curl \
+    python3 \
+    make \
+    g++ && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

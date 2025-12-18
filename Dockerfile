@@ -30,6 +30,14 @@ FROM node:24-slim AS node-builder
 
 WORKDIR /build
 
+# Install build dependencies for native modules (better-sqlite3)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
