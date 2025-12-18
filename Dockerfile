@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     find /opt/venv -name "*.dist-info" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Stage 2: Build stage for Node.js dependencies
-FROM node:23-slim AS node-builder
+FROM node:24-slim AS node-builder
 
 WORKDIR /build
 
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --only=production
 
 # Stage 3: Final runtime stage
-FROM node:23-slim
+FROM node:24-slim
 
 WORKDIR /app
 

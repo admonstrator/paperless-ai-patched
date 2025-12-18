@@ -1,5 +1,5 @@
 # Lite version without RAG - significantly smaller image
-FROM node:23-slim
+FROM node:24-slim
 
 WORKDIR /app
 
