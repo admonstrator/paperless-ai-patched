@@ -18,7 +18,7 @@ jobs:
   # Job 0: Generate version tag
   generate-version:
     name: Generate Version Tag
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest, x64]
     outputs:
       version_tag: ${{ steps.version.outputs.tag }}
       base_version: ${{ steps.version.outputs.base }}
@@ -68,7 +68,7 @@ jobs:
   build-lite:
     needs: generate-version
     name: Build Lite Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest, x64]
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
     
@@ -108,7 +108,7 @@ jobs:
   build-full:
     needs: generate-version
     name: Build Full Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest, x64]
     if: ${{ inputs.build_full_image }}
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
@@ -146,7 +146,7 @@ jobs:
   # Job 3: Push Lite Image to Docker Hub
   push-lite:
     name: Push Lite Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest, x64]
     needs: [generate-version, build-lite]
     
     steps:
@@ -187,7 +187,7 @@ jobs:
   # Job 4: Push Full Image to Docker Hub (optional)
   push-full:
     name: Push Full Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest, x64]
     needs: [generate-version, build-full]
     if: ${{ inputs.build_full_image }}
     
@@ -227,7 +227,7 @@ jobs:
   # Job 5: Summary
   summary:
     name: Build Summary
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest, x64]
     needs: [generate-version, build-lite, push-lite]
     if: always()
     
